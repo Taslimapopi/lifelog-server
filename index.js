@@ -6,6 +6,9 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 3000;
 require("dotenv").config();
 
+const stripe = require('stripe')(process.env.STRIPE_SECRET);
+
+
 // from conceptual cls
 const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
   "utf-8"
@@ -39,6 +42,71 @@ async function run() {
 
     const db = client.db("life_log");
     const lessonCollections = db.collection("lessons");
+    const usersCollection =  db.collection("users")
+
+    // payment related API
+
+    app.post('/create-checkout-session',async(req,res)=>{
+      const paymentInfo = req.body
+      const amount = parseInt(paymentInfo.fee)*100
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+      {
+        // Provide the exact Price ID (for example, price_1234) of the product you want to sell
+        price_data:{
+          currency:'usd',
+          unit_amount: amount,
+          product_data:{
+            name:paymentInfo.name
+          }
+        },
+        quantity: 1,
+      },
+    ],
+    customer_email: paymentInfo.email,
+    mode: 'payment',
+    metadata:{
+      userId: paymentInfo.userId
+
+    },
+    success_url: `${process.env.SITE_DOMAIN}/payment?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.SITE_DOMAIN}/payment-cancelled`,
+      })
+      console.log(session)
+      res.send({url:session.url})
+    })
+
+    app.patch('/payment',async(req,res)=>{
+      const sessionId = req.query.session_id;
+      const session = await stripe.checkout.sessions.retrieve(sessionId)
+      console.log(session)
+      if(session.payment_status === 'paid'){
+        const id = session.metadata.userId
+        const query  = {_id: new ObjectId(id)}
+        const update = {
+          $set:{isUserPremium: true}
+        }
+      }
+      res.send({success:true})
+    })
+
+    // user related API 
+
+     app.post('/users', async (req, res) => {
+            const user = req.body;
+            user.role = 'user';
+            user.isUserPremium = false
+            user.createdAt = new Date();
+            const email = user.email;
+            const userExists = await usersCollection.findOne({ email })
+
+            if (userExists) {
+                return res.send({ message: 'user exists' })
+            }
+
+            const result = await usersCollection.insertOne(user);
+            res.send(result);
+        })
 
     // lessons api
     app.get("/public-lessons", async (req, res) => {
@@ -108,68 +176,6 @@ async function run() {
         res.status(500).send({ error: "Server Error" });
       }
     });
-
-    // lessons api for publiclessons chatgpt
-    // app.get("/public-lessons", async (req, res) => {
-    //   const page = parseInt(req.query.page) || 0;
-    //   const limit = parseInt(req.query.limit) || 10;
-    //   const search = req.query.search || "";
-    //   const category = req.query.category || "";
-    //   const tone = req.query.tone || "";
-    //   const sort = req.query.sort || "newest";
-
-    //   const skip = page * limit;
-
-    //   let query = {
-    //     privacy: { $regex: /^public$/i },
-    //     accessLevel: { $regex: /^free$/i },
-    //   };
-
-    //   // Search by title
-    //   if (search) {
-    //     query.title = { $regex: search, $options: "i" };
-    //   }
-
-    //   // Filter category
-    //   // if (category) {
-    //   //   query.category = category;
-    //   // }
-    //   // Category filter — only if NOT "all"
-    //   if (category && category !== "all") {
-    //     query.category = category;
-    //   }
-
-    //   // Filter emotional tone
-    //   // if (tone) {
-    //   //   query.emotionalTone = tone;
-    //   // }
-
-    //   if (tone && tone !== "all") {
-    //     query.tone = tone;
-    //   }
-
-    //   // Sorting
-    //   let sortOrder = {};
-    //   if (sort === "newest") sortOrder = { createdAt: -1 };
-    //   if (sort === "oldest") sortOrder = { createdAt: 1 };
-    //   if (sort === "mostSaved") sortOrder = { saves: -1 }; // if you have save counter
-
-    //   const total = await lessonCollections.countDocuments(query);
-
-    //   const result = await lessonCollections
-    //     .find(query)
-    //     .sort(sortOrder)
-    //     .skip(skip)
-    //     .limit(limit)
-    //     .toArray();
-
-    //   res.send({
-    //     total,
-    //     page,
-    //     limit,
-    //     data: result,
-    //   });
-    // });
 
     app.get("/lessons", async (req, res) => {
       const query = {};
