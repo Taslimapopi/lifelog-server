@@ -20,6 +20,24 @@ admin.initializeApp({
 app.use(cors());
 app.use(express.json());
 
+const verifyFBToken = async (req, res, next) => {
+  const token = req.headers.authorization;
+
+  if (!token) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+
+  try {
+    const idToken = token.split(" ")[1];
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    console.log("decoded in the token", decoded);
+    req.decoded_email = decoded.email;
+    next();
+  } catch (err) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+};
+
 app.get("/", (req, res) => {
   res.send("lifeLog is running now");
 });
@@ -70,7 +88,7 @@ async function run() {
         success_url: `${process.env.SITE_DOMAIN}/payment?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.SITE_DOMAIN}/payment-cancelled`,
       });
-      console.log(session);
+      // console.log(session);
       res.send({ url: session.url });
     });
 
@@ -81,7 +99,7 @@ async function run() {
       if (session.payment_status === "paid") {
         const email = session.customer_email;
         const query = { email };
-        console.log(query);
+
         const update = {
           $set: { isUserPremium: true },
         };
@@ -192,9 +210,10 @@ async function run() {
       }
     });
 
-    app.get("/lessons", async (req, res) => {
+    app.get("/lessons",verifyFBToken, async (req, res) => {
       const query = {};
       const { email } = req.query;
+      console.log("headers", req.headers);
       if (email) {
         query["author.email"] = email;
       }
