@@ -210,14 +210,19 @@ async function run() {
       }
     });
 
-    app.get("/lessons",verifyFBToken, async (req, res) => {
+    app.get("/home-lessons", async (req, res) => {
+      const result = await lessonCollections.find().limit(10).toArray();
+      res.send(result);
+    });
+
+    app.get("/lessons", verifyFBToken, async (req, res) => {
       const query = {};
       const { email } = req.query;
       console.log("headers", req.headers);
       if (email) {
         query["author.email"] = email;
       }
-      const result = await lessonCollections.find(query).limit(10).toArray();
+      const result = await lessonCollections.find(query).toArray();
       res.send(result);
     });
 
@@ -421,6 +426,86 @@ async function run() {
       } catch (error) {
         res.status(500).send({ message: "Error adding comment", error });
       }
+    });
+
+    // favorite lessons of a user
+
+    app.get("/lessons/favorites/:userId", async (req, res) => {
+      try {
+        const userId = req.params.userId;
+        const { category, emotionalTone } = req.query;
+
+        // Base query: find all lessons where favorites array contains userId
+        let query = {
+          favorites: userId,
+        };
+
+        // Add optional filters
+        if (category) {
+          query.category = category;
+        }
+
+        if (emotionalTone) {
+          query.emotionalTone = emotionalTone;
+        }
+
+        const lessons = await lessonCollections
+          .find(query)
+          .sort({ _id: -1 })
+          .toArray();
+
+        res.send(lessons);
+      } catch (error) {
+        console.error("Favorites fetch error:", error);
+        res.status(500).send({ message: "Internal Server Error", error });
+      }
+    });
+
+    // api for removing favroute
+
+    app.patch("/lessons/remove-favorite", async (req, res) => {
+      try {
+        const { lessonId, userId } = req.body;
+
+        const result = await lessonCollections.updateOne(
+          { _id: new ObjectId(lessonId) },
+          { $pull: { favorites: userId } } // <-- removes userId from favorites array
+        );
+
+        if (result.modifiedCount === 0) {
+          return res
+            .status(404)
+            .send({ message: "Favorite not found to remove" });
+        }
+
+        res.send({ success: true, message: "Removed from favorites" });
+      } catch (error) {
+        res.status(500).send({ message: "Error removing favorite", error });
+      }
+    });
+
+    // api for showing fav lesson in profile
+    app.get("/lessons/favorites/count/:userId", async (req, res) => {
+      const userId = req.params.userId;
+
+      const count = await lessonCollections.countDocuments({
+        favorites: userId,
+      });
+
+      res.send({ count });
+    });
+
+    // api for showing user public lessons in profile
+
+    app.get("/lessons/user/:userId", async (req, res) => {
+      const userId = req.params.userId;
+
+      const lessons = await lessonCollections
+        .find({ authorId: userId, privacy: "public" }) // only public
+        .sort({ _id: -1 }) // newest first
+        .toArray();
+
+      res.send(lessons);
     });
 
     // ================================
