@@ -6,8 +6,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 3000;
 require("dotenv").config();
 
-const stripe = require('stripe')(process.env.STRIPE_SECRET);
-
+const stripe = require("stripe")(process.env.STRIPE_SECRET);
 
 // from conceptual cls
 const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
@@ -42,71 +41,87 @@ async function run() {
 
     const db = client.db("life_log");
     const lessonCollections = db.collection("lessons");
-    const usersCollection =  db.collection("users")
+    const usersCollection = db.collection("users");
 
     // payment related API
 
-    app.post('/create-checkout-session',async(req,res)=>{
-      const paymentInfo = req.body
-      const amount = parseInt(paymentInfo.fee)*100
+    app.post("/create-checkout-session", async (req, res) => {
+      const paymentInfo = req.body;
+      const amount = parseInt(paymentInfo.fee) * 100;
       const session = await stripe.checkout.sessions.create({
         line_items: [
-      {
-        // Provide the exact Price ID (for example, price_1234) of the product you want to sell
-        price_data:{
-          currency:'usd',
-          unit_amount: amount,
-          product_data:{
-            name:paymentInfo.name
-          }
+          {
+            // Provide the exact Price ID (for example, price_1234) of the product you want to sell
+            price_data: {
+              currency: "usd",
+              unit_amount: amount,
+              product_data: {
+                name: paymentInfo.name,
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        customer_email: paymentInfo.email,
+        mode: "payment",
+        metadata: {
+          userId: paymentInfo.userId,
         },
-        quantity: 1,
-      },
-    ],
-    customer_email: paymentInfo.email,
-    mode: 'payment',
-    metadata:{
-      userId: paymentInfo.userId
+        success_url: `${process.env.SITE_DOMAIN}/payment?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.SITE_DOMAIN}/payment-cancelled`,
+      });
+      console.log(session);
+      res.send({ url: session.url });
+    });
 
-    },
-    success_url: `${process.env.SITE_DOMAIN}/payment?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.SITE_DOMAIN}/payment-cancelled`,
-      })
-      console.log(session)
-      res.send({url:session.url})
-    })
-
-    app.patch('/payment',async(req,res)=>{
+    app.patch("/payment", async (req, res) => {
       const sessionId = req.query.session_id;
-      const session = await stripe.checkout.sessions.retrieve(sessionId)
-      console.log(session)
-      if(session.payment_status === 'paid'){
-        const id = session.metadata.userId
-        const query  = {_id: new ObjectId(id)}
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      // console.log(session);
+      if (session.payment_status === "paid") {
+        const email = session.customer_email;
+        const query = { email };
+        console.log(query);
         const update = {
-          $set:{isUserPremium: true}
-        }
+          $set: { isUserPremium: true },
+        };
+        const result = await usersCollection.updateOne(query, update);
+
+        console.log("User premium updated:", result);
+        return res.send({ success: true, message: "User is now premium!" });
       }
-      res.send({success:true})
-    })
+      res.send({ success: true });
+    });
 
-    // user related API 
+    // user related API
 
-     app.post('/users', async (req, res) => {
-            const user = req.body;
-            user.role = 'user';
-            user.isUserPremium = false
-            user.createdAt = new Date();
-            const email = user.email;
-            const userExists = await usersCollection.findOne({ email })
+    app.get("/users/email/:email", async (req, res) => {
+      const email = req.params.email;
 
-            if (userExists) {
-                return res.send({ message: 'user exists' })
-            }
+      const user = await usersCollection.findOne({ email });
 
-            const result = await usersCollection.insertOne(user);
-            res.send(result);
-        })
+      if (!user) {
+        return res.status(404).send({ message: "User not found" });
+      }
+
+      res.send(user);
+    });
+
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      user.role = "user";
+      user.isUserPremium = false;
+      user.createdAt = new Date();
+      const email = user.email;
+      const userExists = await usersCollection.findOne({ email });
+
+      if (userExists) {
+        return res.send({ message: "user exists" });
+      }
+
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
 
     // lessons api
     app.get("/public-lessons", async (req, res) => {
