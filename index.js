@@ -431,6 +431,33 @@ async function run() {
       }
     });
 
+    // api for report page frontend
+
+    app.get("/admin/reported-lessons", async (req, res) => {
+      const result = await lessonCollections
+        .find({ isFlagged: true })
+        .toArray();
+
+      res.send(result);
+    });
+
+    // api for ignoredreport
+
+    app.patch("/lessons/:id/ignore-reports", async (req, res) => {
+  const { id } = req.params;
+
+  const result = await lessonCollections.updateOne(
+    { _id: new ObjectId(id) },
+    {
+      $set: { isFlagged: false },
+      $unset: { reports: "" },
+    }
+  );
+
+  res.send(result);
+});
+
+
     // ================================
     // 5️⃣ Get Recommended Lessons (6 max)
     // ================================
