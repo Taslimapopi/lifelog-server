@@ -162,6 +162,25 @@ async function run() {
       res.send(result);
     });
 
+    // admin profile api
+
+    app.get("/admin/profile/:email", async (req, res) => {
+      const email = req.params.email;
+
+      const user = await usersCollection.findOne({ email });
+
+      if (!user || user.role !== "admin") {
+        return res.status(403).send({ message: "Access denied" });
+      }
+
+      res.send({
+        name: user.name,
+        email: user.email,
+        photo: user.photo,
+        role: user.role,
+      });
+    });
+
     // lessons api
     app.get("/public-lessons", async (req, res) => {
       try {
@@ -444,19 +463,18 @@ async function run() {
     // api for ignoredreport
 
     app.patch("/lessons/:id/ignore-reports", async (req, res) => {
-  const { id } = req.params;
+      const { id } = req.params;
 
-  const result = await lessonCollections.updateOne(
-    { _id: new ObjectId(id) },
-    {
-      $set: { isFlagged: false },
-      $unset: { reports: "" },
-    }
-  );
+      const result = await lessonCollections.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: { isFlagged: false },
+          $unset: { reports: "" },
+        }
+      );
 
-  res.send(result);
-});
-
+      res.send(result);
+    });
 
     // ================================
     // 5️⃣ Get Recommended Lessons (6 max)
@@ -662,7 +680,7 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     // console.log(
     //   "Pinged your deployment. You successfully connected to MongoDB!"
     // );
