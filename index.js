@@ -141,6 +141,27 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const updateUser = req.body;
+
+      const query = { _id: new ObjectId(id) };
+      const updatedDoc = { $set: updateUser };
+
+      const result = await usersCollection.updateOne(query, updatedDoc);
+      res.send(result);
+    });
+
+    app.delete("/users/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const query = { _id: new ObjectId(id) };
+
+      const result = await usersCollection.deleteOne(query);
+
+      res.send(result);
+    });
+
     // lessons api
     app.get("/public-lessons", async (req, res) => {
       try {
@@ -296,7 +317,7 @@ async function run() {
       try {
         const id = req.params.id;
         const { userId } = req.body;
-
+        console.log({ id, userId });
         const lesson = await lessonCollections.findOne({
           _id: new ObjectId(id),
         });
@@ -356,22 +377,57 @@ async function run() {
     // ================================
     // 4️⃣ Report Lesson
     // ================================
-    app.post("/lessons/:id/report", async (req, res) => {
+    // app.post("/reports", async (req, res) => {
+    //   try {
+    //     const id = req.params.id;
+
+    //     const reportData = {
+    //       lessonId: id,
+    //       reporterEmail: req.body.email,
+    //       reason: req.body.reason,
+    //       isFlagged:true,
+    //       timestamp: new Date(),
+
+    //     };
+
+    //     await reportsCollection.insertOne(reportData);
+
+    //     res.send({ success: true, message: "Report submitted" });
+    //   } catch (error) {
+    //     res.status(500).send({ message: "Error submitting report", error });
+    //   }
+    // });
+
+    app.patch("/lessons/:id/report", async (req, res) => {
       try {
-        const id = req.params.id;
+        const lessonId = req.params.id;
+        const { reporterEmail, reason } = req.body;
+
+        if (!reporterEmail || !reason) {
+          return res.status(400).send({ message: "Missing data" });
+        }
 
         const reportData = {
-          lessonId: id,
-          reporterEmail: req.body.email,
-          reason: req.body.reason,
-          timestamp: new Date(),
+          reporterEmail,
+          reason,
+          reportedAt: new Date(),
         };
 
-        await reportsCollection.insertOne(reportData);
+        const result = await lessonCollections.updateOne(
+          { _id: new ObjectId(lessonId) },
+          {
+            $set: { isFlagged: true },
+            $push: { reports: reportData },
+          }
+        );
 
-        res.send({ success: true, message: "Report submitted" });
+        res.send({
+          success: true,
+          message: "Lesson reported successfully",
+          result,
+        });
       } catch (error) {
-        res.status(500).send({ message: "Error submitting report", error });
+        res.status(500).send({ message: "Report failed", error });
       }
     });
 
@@ -524,6 +580,58 @@ async function run() {
       } catch (error) {
         res.status(500).send({ message: "Error fetching comments", error });
       }
+    });
+
+    // ADMIN API
+
+    // allUsers APi
+
+    app.get("/users", async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+
+    // manage lessons api es
+
+    app.get("/lessons/stats/all", async (req, res) => {
+      const total = await lessonCollections.countDocuments();
+      const publicLessons = await lessonCollections.countDocuments({
+        accessLevel: "free",
+      });
+      const premiumLessons = await lessonCollections.countDocuments({
+        accessLevel: "premium",
+      });
+      const flagged = await lessonCollections.countDocuments({
+        isFlagged: true,
+      });
+
+      res.send({ total, publicLessons, premiumLessons, flagged });
+    });
+
+    // marked reviewed
+
+    app.patch("/lessons/review/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const result = await lessonCollections.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { isReviewed: true } }
+      );
+
+      res.send(result);
+    });
+
+    // featured
+
+    app.patch("/lessons/feature/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const result = await lessonCollections.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { isFeatured: true } }
+      );
+
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
