@@ -679,8 +679,30 @@ async function run() {
       res.send(result);
     });
 
+    // featured lesson
+
+    app.get("/featured-lessons", async (req, res) => {
+      const result = await lessonCollections
+        .find({
+          isFeatured: true,
+        })
+        .limit(6)
+        .toArray();
+
+      res.send(result);
+    });
+
+    // top contributor r jonno
+
+    app.get('/top-users',async(req,res)=>{
+      const result = await usersCollection.find().limit(3).toArray()
+      res.send(result)
+    })
+
+
+
     // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
+    await client.db("admin").command({ ping: 1 });
     // console.log(
     //   "Pinged your deployment. You successfully connected to MongoDB!"
     // );
