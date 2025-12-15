@@ -317,6 +317,7 @@ async function run() {
     app.post("/lessons", async (req, res) => {
       const lesson = req.body;
       lesson.createdAt = new Date();
+      lesson.isFeatured = false;
       const result = await lessonCollections.insertOne(lesson);
       res.send(result);
     });
@@ -549,7 +550,7 @@ async function run() {
     // ================================
     // 6️⃣ Add Comment
     // ================================
-    app.post("lessons/:id/comment", async (req, res) => {
+    app.post("/lessons/:id/comment", async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -559,7 +560,6 @@ async function run() {
           userName: req.body.userName,
           comment: req.body.comment,
           createdAt: new Date(),
-          isFeatured: false,
         };
 
         await commentsCollection.insertOne(commentData);
@@ -653,7 +653,7 @@ async function run() {
     // ================================
     // 7️⃣ Get All Comments of Lesson
     // ================================
-    app.get("lessons/:id/comments", async (req, res) => {
+    app.get("/lessons/:id/comments", async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -665,6 +665,54 @@ async function run() {
         res.send(comments);
       } catch (error) {
         res.status(500).send({ message: "Error fetching comments", error });
+      }
+    });
+
+    // api for recommended lesson
+
+    app.get("/lessons/recommended/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const currentLesson = await lessonCollections.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!currentLesson) {
+          return res.status(404).send({ message: "Lesson not found" });
+        }
+
+        const recommended = await lessonCollections
+          .find({
+            _id: { $ne: new ObjectId(id) }, // exclude current lesson
+            accessLevel: "free", // optional: only public
+            $or: [
+              { category: currentLesson.category },
+              { emotionalTone: currentLesson.emotionalTone },
+            ],
+          })
+          .limit(6)
+          .toArray();
+
+        res.send(recommended);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to load recommendations" });
+      }
+    });
+
+    // author lesson count
+
+    app.get("/lessons/count/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        const count = await lessonCollections.countDocuments({
+          "author.email": email,
+        });
+
+        res.send({ count });
+      } catch (error) {
+        res.status(500).send({ message: "Count failed", error });
       }
     });
 
@@ -772,7 +820,7 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     // console.log(
     //   "Pinged your deployment. You successfully connected to MongoDB!"
     // );
