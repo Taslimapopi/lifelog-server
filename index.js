@@ -61,6 +61,20 @@ async function run() {
     const lessonCollections = db.collection("lessons");
     const usersCollection = db.collection("users");
 
+    // middle admin before allowing admin activity
+    // must be used after verifyFBToken middleware
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded_email;
+      const query = { email };
+      const user = await usersCollection.findOne(query);
+
+      if (!user || user.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+
+      next();
+    };
+
     // payment related API
 
     app.post("/create-checkout-session", async (req, res) => {
@@ -141,6 +155,25 @@ async function run() {
       res.send(result);
     });
 
+    // update user api
+
+    app.patch("/users/update-profile/:email", async (req, res) => {
+      const email = req.params.email;
+      const { displayName, photoURL } = req.body;
+
+      const result = await usersCollection.updateOne(
+        { email },
+        {
+          $set: {
+            displayName,
+            photoURL,
+          },
+        }
+      );
+
+      res.send(result);
+    });
+
     app.patch("/users/:id", async (req, res) => {
       const id = req.params.id;
       const updateUser = req.body;
@@ -164,11 +197,11 @@ async function run() {
 
     //  user role
 
-    app.get('/user/role/:email',async(req,res)=>{
-      const email = req.params.email
-      const result = await usersCollection.findOne({email})
-      res.send({result: result?.role})
-    })
+    app.get("/user/role/:email", async (req, res) => {
+      const email = req.params.email;
+      const result = await usersCollection.findOne({ email });
+      res.send({ result: result?.role });
+    });
 
     // admin profile api
 
@@ -288,7 +321,7 @@ async function run() {
       res.send(result);
     });
 
-    app.put("/update-lessons/:id", async (req, res) => {
+    app.put("/update-lessons/:id", verifyFBToken, async (req, res) => {
       const id = req.params.id;
       const updatedData = req.body;
 
@@ -337,7 +370,6 @@ async function run() {
     const reportsCollection = db.collection("lessonReports");
     const commentsCollection = db.collection("lessonComments");
 
-    
     // 2️⃣ Toggle Like
     // ================================
     app.patch("/lessons/:id/toggleLike", async (req, res) => {
@@ -527,6 +559,7 @@ async function run() {
           userName: req.body.userName,
           comment: req.body.comment,
           createdAt: new Date(),
+          isFeatured: false,
         };
 
         await commentsCollection.insertOne(commentData);
@@ -676,15 +709,46 @@ async function run() {
 
     // featured
 
+    // app.patch("/lessons/feature/:id", async (req, res) => {
+    //   const id = req.params.id;
+
+    //   const result = await lessonCollections.updateOne(
+    //     { _id: new ObjectId(id) },
+    //     { $set: { isFeatured: true } }
+    //   );
+
+    //   res.send(result);
+    // });
+
     app.patch("/lessons/feature/:id", async (req, res) => {
-      const id = req.params.id;
+      try {
+        const id = req.params.id;
 
-      const result = await lessonCollections.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: { isFeatured: true } }
-      );
+        // আগে lesson টা বের করো
+        const lesson = await lessonCollections.findOne({
+          _id: new ObjectId(id),
+        });
 
-      res.send(result);
+        if (!lesson) {
+          return res.status(404).send({ message: "Lesson not found" });
+        }
+
+        // toggle logic
+        const updatedValue = !lesson.isFeatured;
+
+        const result = await lessonCollections.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { isFeatured: updatedValue } }
+        );
+
+        res.send({
+          success: true,
+          isFeatured: updatedValue,
+          result,
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Feature toggle failed", error });
+      }
     });
 
     // featured lesson
@@ -702,14 +766,10 @@ async function run() {
 
     // top contributor r jonno
 
-    app.get('/top-users',async(req,res)=>{
-      const result = await usersCollection.find().limit(3).toArray()
-      res.send(result)
-    })
-
-    
-
-
+    app.get("/top-users", async (req, res) => {
+      const result = await usersCollection.find().limit(3).toArray();
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
