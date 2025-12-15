@@ -194,7 +194,7 @@ async function run() {
 
         const query = {
           privacy: { $regex: /^public$/i },
-          accessLevel: { $regex: /^free$/i },
+          // accessLevel: { $regex: /^free$/i },
         };
 
         if (search) {
@@ -697,6 +697,14 @@ async function run() {
     app.get('/top-users',async(req,res)=>{
       const result = await usersCollection.find().limit(3).toArray()
       res.send(result)
+    })
+
+    //  user role
+
+    app.get('/user/role/:email',async(req,res)=>{
+      const email = req.params.email
+      const result = await usersCollection.findOne({email})
+      res.send({result: result?.role})
     })
 
 
