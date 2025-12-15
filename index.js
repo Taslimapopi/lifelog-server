@@ -162,6 +162,14 @@ async function run() {
       res.send(result);
     });
 
+    //  user role
+
+    app.get('/user/role/:email',async(req,res)=>{
+      const email = req.params.email
+      const result = await usersCollection.findOne({email})
+      res.send({result: result?.role})
+    })
+
     // admin profile api
 
     app.get("/admin/profile/:email", async (req, res) => {
@@ -329,7 +337,7 @@ async function run() {
     const reportsCollection = db.collection("lessonReports");
     const commentsCollection = db.collection("lessonComments");
 
-    // ================================
+    
     // 2️⃣ Toggle Like
     // ================================
     app.patch("/lessons/:id/toggleLike", async (req, res) => {
@@ -699,13 +707,7 @@ async function run() {
       res.send(result)
     })
 
-    //  user role
-
-    app.get('/user/role/:email',async(req,res)=>{
-      const email = req.params.email
-      const result = await usersCollection.findOne({email})
-      res.send({result: result?.role})
-    })
+    
 
 
 
