@@ -349,7 +349,7 @@ async function run() {
       }
     });
 
-    app.delete("/lessons/:id", async (req, res) => {
+    app.delete("/lessons/:id",verifyFBToken, async (req, res) => {
       try {
         const id = req.params.id;
         const result = await lessonCollections.deleteOne({
@@ -720,7 +720,7 @@ async function run() {
 
     // allUsers APi
 
-    app.get("/users", async (req, res) => {
+    app.get("/users",verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
@@ -757,16 +757,6 @@ async function run() {
 
     // featured
 
-    // app.patch("/lessons/feature/:id", async (req, res) => {
-    //   const id = req.params.id;
-
-    //   const result = await lessonCollections.updateOne(
-    //     { _id: new ObjectId(id) },
-    //     { $set: { isFeatured: true } }
-    //   );
-
-    //   res.send(result);
-    // });
 
     app.patch("/lessons/feature/:id", async (req, res) => {
       try {
