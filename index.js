@@ -7,6 +7,8 @@ const port = process.env.PORT || 3000;
 require("dotenv").config();
 
 const stripe = require("stripe")(process.env.STRIPE_SECRET);
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // from conceptual cls
 const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
@@ -129,6 +131,7 @@ async function run() {
 
     app.get("/users/email/:email", async (req, res) => {
       const email = req.params.email;
+      console.log(email)
 
       const user = await usersCollection.findOne({ email });
 
@@ -720,7 +723,7 @@ async function run() {
 
     // allUsers APi
 
-    app.get("/users",verifyAdmin, async (req, res) => {
+    app.get("/users",verifyFBToken,verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
@@ -800,6 +803,71 @@ async function run() {
         .toArray();
 
       res.send(result);
+    });
+
+ 
+
+    // ============================================
+    // 🤖 AI SUMMARY ROUTE (Gemini API)
+    // ============================================
+    app.post("/ai-summary", async (req, res) => {
+      try {
+        const { title, description, category, emotionalTone, comments } =
+          req.body;
+
+        if (!title || !description) {
+          return res
+            .status(400)
+            .send({ message: "Title and description are required" });
+        }
+
+        const commentText =
+          comments && comments.length > 0
+            ? comments
+                .slice(0, 10)
+                .map((c) => `- ${c.comment}`)
+                .join("\n")
+            : "No comments yet.";
+
+        const prompt = `
+You are an insightful life coach AI. Analyze the following life lesson shared by a user on the LifeLog platform and provide a structured summary.
+
+**Lesson Title:** ${title}
+**Category:** ${category || "General"}
+**Emotional Tone:** ${emotionalTone || "Neutral"}
+**Lesson Content:**
+${description}
+
+**Community Comments:**
+${commentText}
+
+Provide a JSON response with EXACTLY this structure (no markdown, pure JSON):
+{
+  "keyTakeaways": ["takeaway 1", "takeaway 2", "takeaway 3"],
+  "emotionalInsight": "A 1-2 sentence insight about the emotional journey in this lesson",
+  "suggestedAction": "One specific, actionable thing readers can do today based on this lesson",
+  "communityMood": "A brief summary of how the community responded (based on comments)",
+  "powerQuote": "A short inspiring quote (max 15 words) that captures the essence of this lesson"
+}`;
+
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+
+        // Clean the response (remove markdown code blocks if present)
+        const cleaned = text
+          .replace(/```json\n?/g, "")
+          .replace(/```\n?/g, "")
+          .trim();
+
+        const summaryData = JSON.parse(cleaned);
+        res.send({ success: true, summary: summaryData });
+      } catch (error) {
+        console.error("AI Summary Error:", error);
+        res
+          .status(500)
+          .send({ message: "AI summary generation failed", error: error.message });
+      }
     });
 
     // top contributor r jonno
