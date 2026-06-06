@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 const admin = require("firebase-admin");
+const axios = require("axios");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 3000;
 require("dotenv").config();
@@ -12,7 +13,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // from conceptual cls
 const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
-  "utf-8"
+  "utf-8",
 );
 const serviceAccount = JSON.parse(decoded);
 admin.initializeApp({
@@ -131,7 +132,7 @@ async function run() {
 
     app.get("/users/email/:email", async (req, res) => {
       const email = req.params.email;
-      console.log(email)
+      console.log(email);
 
       const user = await usersCollection.findOne({ email });
 
@@ -171,7 +172,7 @@ async function run() {
             displayName,
             photoURL,
           },
-        }
+        },
       );
 
       res.send(result);
@@ -352,7 +353,7 @@ async function run() {
       }
     });
 
-    app.delete("/lessons/:id",verifyFBToken, async (req, res) => {
+    app.delete("/lessons/:id", verifyFBToken, async (req, res) => {
       try {
         const id = req.params.id;
         const result = await lessonCollections.deleteOne({
@@ -396,7 +397,7 @@ async function run() {
 
         await lessonCollections.updateOne(
           { _id: new ObjectId(id) },
-          updateQuery
+          updateQuery,
         );
 
         res.send({ success: true, liked: !isLiked });
@@ -428,7 +429,7 @@ async function run() {
 
         await lessonCollections.updateOne(
           { _id: new ObjectId(id) },
-          updateQuery
+          updateQuery,
         );
 
         res.send({ success: true, favorited: !isFav });
@@ -436,30 +437,6 @@ async function run() {
         res.status(500).send({ message: "Error toggling favorite", error });
       }
     });
-
-    // ================================
-    // 4️⃣ Report Lesson
-    // ================================
-    // app.post("/reports", async (req, res) => {
-    //   try {
-    //     const id = req.params.id;
-
-    //     const reportData = {
-    //       lessonId: id,
-    //       reporterEmail: req.body.email,
-    //       reason: req.body.reason,
-    //       isFlagged:true,
-    //       timestamp: new Date(),
-
-    //     };
-
-    //     await reportsCollection.insertOne(reportData);
-
-    //     res.send({ success: true, message: "Report submitted" });
-    //   } catch (error) {
-    //     res.status(500).send({ message: "Error submitting report", error });
-    //   }
-    // });
 
     app.patch("/lessons/:id/report", async (req, res) => {
       try {
@@ -481,7 +458,7 @@ async function run() {
           {
             $set: { isFlagged: true },
             $push: { reports: reportData },
-          }
+          },
         );
 
         res.send({
@@ -514,7 +491,7 @@ async function run() {
         {
           $set: { isFlagged: false },
           $unset: { reports: "" },
-        }
+        },
       );
 
       res.send(result);
@@ -614,7 +591,7 @@ async function run() {
 
         const result = await lessonCollections.updateOne(
           { _id: new ObjectId(lessonId) },
-          { $pull: { favorites: userId } } // <-- removes userId from favorites array
+          { $pull: { favorites: userId } }, // <-- removes userId from favorites array
         );
 
         if (result.modifiedCount === 0) {
@@ -723,7 +700,7 @@ async function run() {
 
     // allUsers APi
 
-    app.get("/users",verifyFBToken,verifyAdmin, async (req, res) => {
+    app.get("/users", verifyFBToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
@@ -752,14 +729,13 @@ async function run() {
 
       const result = await lessonCollections.updateOne(
         { _id: new ObjectId(id) },
-        { $set: { isReviewed: true } }
+        { $set: { isReviewed: true } },
       );
 
       res.send(result);
     });
 
     // featured
-
 
     app.patch("/lessons/feature/:id", async (req, res) => {
       try {
@@ -779,7 +755,7 @@ async function run() {
 
         const result = await lessonCollections.updateOne(
           { _id: new ObjectId(id) },
-          { $set: { isFeatured: updatedValue } }
+          { $set: { isFeatured: updatedValue } },
         );
 
         res.send({
@@ -805,70 +781,130 @@ async function run() {
       res.send(result);
     });
 
- 
-
     // ============================================
     // 🤖 AI SUMMARY ROUTE (Gemini API)
     // ============================================
-    app.post("/ai-summary", async (req, res) => {
-      try {
-        const { title, description, category, emotionalTone, comments } =
-          req.body;
+//     app.post("/ai-summary", async (req, res) => {
+//        console.log("AI Summary route hit!"); // এটা যোগ করুন
+//   console.log("Request body:", req.body); // এটাও যোগ করুন
+//       try {
+//         const { title, description, category, emotionalTone, comments } =
+//           req.body;
 
-        if (!title || !description) {
-          return res
-            .status(400)
-            .send({ message: "Title and description are required" });
-        }
+//         if (!title || !description) {
+//           return res
+//             .status(400)
+//             .send({ message: "Title and description are required" });
+//         }
 
-        const commentText =
-          comments && comments.length > 0
-            ? comments
-                .slice(0, 10)
-                .map((c) => `- ${c.comment}`)
-                .join("\n")
-            : "No comments yet.";
+//         const commentText =
+//           comments && comments.length > 0
+//             ? comments
+//                 .slice(0, 10)
+//                 .map((c) => `- ${c.comment}`)
+//                 .join("\n")
+//             : "No comments yet.";
 
-        const prompt = `
-You are an insightful life coach AI. Analyze the following life lesson shared by a user on the LifeLog platform and provide a structured summary.
+//         const prompt = `
+// You are an insightful life coach AI. Analyze the following life lesson shared by a user on the LifeLog platform and provide a structured summary.
+
+// **Lesson Title:** ${title}
+// **Category:** ${category || "General"}
+// **Emotional Tone:** ${emotionalTone || "Neutral"}
+// **Lesson Content:**
+// ${description}
+
+// **Community Comments:**
+// ${commentText}
+
+// Provide a JSON response with EXACTLY this structure (no markdown, pure JSON):
+// {
+//   "keyTakeaways": ["takeaway 1", "takeaway 2", "takeaway 3"],
+//   "emotionalInsight": "A 1-2 sentence insight about the emotional journey in this lesson",
+//   "suggestedAction": "One specific, actionable thing readers can do today based on this lesson",
+//   "communityMood": "A brief summary of how the community responded (based on comments)",
+//   "powerQuote": "A short inspiring quote (max 15 words) that captures the essence of this lesson"
+// }`;
+
+//         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+//         const result = await model.generateContent(prompt);
+//         const text = result.response.text();
+
+//         // Clean the response (remove markdown code blocks if present)
+//         const cleaned = text
+//           .replace(/```json\n?/g, "")
+//           .replace(/```\n?/g, "")
+//           .trim();
+
+//         const summaryData = JSON.parse(cleaned);
+//         res.send({ success: true, summary: summaryData });
+//       } catch (error) {
+//         console.error("AI Summary Error:", error);
+//         res
+//           .status(500)
+//           .send({
+//             message: "AI summary generation failed",
+//             error: error.message,
+//           });
+//       }
+//     });
+
+app.post("/ai-summary", async (req, res) => {
+  console.log("HIT");
+  try {
+    const { title, description, category, emotionalTone, comments } = req.body;
+
+    if (!title || !description) {
+      return res.status(400).send({ message: "Title and description are required" });
+    }
+
+    const commentText = comments?.length > 0
+      ? comments.slice(0, 10).map((c) => `- ${c.comment}`).join("\n")
+      : "No comments yet.";
+
+    const response = await axios.post(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        model: "openrouter/free",
+        messages: [{
+          role: "user",
+          content: `You are an insightful life coach AI. Analyze the following life lesson and provide a structured summary.
 
 **Lesson Title:** ${title}
 **Category:** ${category || "General"}
 **Emotional Tone:** ${emotionalTone || "Neutral"}
-**Lesson Content:**
-${description}
-
-**Community Comments:**
-${commentText}
+**Lesson Content:** ${description}
+**Community Comments:** ${commentText}
 
 Provide a JSON response with EXACTLY this structure (no markdown, pure JSON):
 {
   "keyTakeaways": ["takeaway 1", "takeaway 2", "takeaway 3"],
-  "emotionalInsight": "A 1-2 sentence insight about the emotional journey in this lesson",
-  "suggestedAction": "One specific, actionable thing readers can do today based on this lesson",
-  "communityMood": "A brief summary of how the community responded (based on comments)",
-  "powerQuote": "A short inspiring quote (max 15 words) that captures the essence of this lesson"
-}`;
-
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-
-        // Clean the response (remove markdown code blocks if present)
-        const cleaned = text
-          .replace(/```json\n?/g, "")
-          .replace(/```\n?/g, "")
-          .trim();
-
-        const summaryData = JSON.parse(cleaned);
-        res.send({ success: true, summary: summaryData });
-      } catch (error) {
-        console.error("AI Summary Error:", error);
-        res
-          .status(500)
-          .send({ message: "AI summary generation failed", error: error.message });
+  "emotionalInsight": "A 1-2 sentence insight about the emotional journey",
+  "suggestedAction": "One specific actionable thing readers can do today",
+  "communityMood": "A brief summary of how the community responded",
+  "powerQuote": "A short inspiring quote (max 15 words)"
+}`
+        }]
+      },
+      {
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json"
+        }
       }
-    });
+    );
+
+    const text = response.data.choices[0].message.content;
+    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const summaryData = JSON.parse(cleaned);
+
+    res.send({ success: true, summary: summaryData });
+
+  } catch (error) {
+    console.error("AI Summary Error:", error.message);
+    res.status(500).send({ message: "AI summary generation failed", error: error.message });
+  }
+});
 
     // top contributor r jonno
 
