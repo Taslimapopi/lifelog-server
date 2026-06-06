@@ -784,91 +784,106 @@ async function run() {
     // ============================================
     // 🤖 AI SUMMARY ROUTE (Gemini API)
     // ============================================
-//     app.post("/ai-summary", async (req, res) => {
-//        console.log("AI Summary route hit!"); // এটা যোগ করুন
-//   console.log("Request body:", req.body); // এটাও যোগ করুন
-//       try {
-//         const { title, description, category, emotionalTone, comments } =
-//           req.body;
+    //     app.post("/ai-summary", async (req, res) => {
+    //        console.log("AI Summary route hit!"); // এটা যোগ করুন
+    //   console.log("Request body:", req.body); // এটাও যোগ করুন
+    //       try {
+    //         const { title, description, category, emotionalTone, comments } =
+    //           req.body;
 
-//         if (!title || !description) {
-//           return res
-//             .status(400)
-//             .send({ message: "Title and description are required" });
-//         }
+    //         if (!title || !description) {
+    //           return res
+    //             .status(400)
+    //             .send({ message: "Title and description are required" });
+    //         }
 
-//         const commentText =
-//           comments && comments.length > 0
-//             ? comments
-//                 .slice(0, 10)
-//                 .map((c) => `- ${c.comment}`)
-//                 .join("\n")
-//             : "No comments yet.";
+    //         const commentText =
+    //           comments && comments.length > 0
+    //             ? comments
+    //                 .slice(0, 10)
+    //                 .map((c) => `- ${c.comment}`)
+    //                 .join("\n")
+    //             : "No comments yet.";
 
-//         const prompt = `
-// You are an insightful life coach AI. Analyze the following life lesson shared by a user on the LifeLog platform and provide a structured summary.
+    //         const prompt = `
+    // You are an insightful life coach AI. Analyze the following life lesson shared by a user on the LifeLog platform and provide a structured summary.
 
-// **Lesson Title:** ${title}
-// **Category:** ${category || "General"}
-// **Emotional Tone:** ${emotionalTone || "Neutral"}
-// **Lesson Content:**
-// ${description}
+    // **Lesson Title:** ${title}
+    // **Category:** ${category || "General"}
+    // **Emotional Tone:** ${emotionalTone || "Neutral"}
+    // **Lesson Content:**
+    // ${description}
 
-// **Community Comments:**
-// ${commentText}
+    // **Community Comments:**
+    // ${commentText}
 
-// Provide a JSON response with EXACTLY this structure (no markdown, pure JSON):
-// {
-//   "keyTakeaways": ["takeaway 1", "takeaway 2", "takeaway 3"],
-//   "emotionalInsight": "A 1-2 sentence insight about the emotional journey in this lesson",
-//   "suggestedAction": "One specific, actionable thing readers can do today based on this lesson",
-//   "communityMood": "A brief summary of how the community responded (based on comments)",
-//   "powerQuote": "A short inspiring quote (max 15 words) that captures the essence of this lesson"
-// }`;
+    // Provide a JSON response with EXACTLY this structure (no markdown, pure JSON):
+    // {
+    //   "keyTakeaways": ["takeaway 1", "takeaway 2", "takeaway 3"],
+    //   "emotionalInsight": "A 1-2 sentence insight about the emotional journey in this lesson",
+    //   "suggestedAction": "One specific, actionable thing readers can do today based on this lesson",
+    //   "communityMood": "A brief summary of how the community responded (based on comments)",
+    //   "powerQuote": "A short inspiring quote (max 15 words) that captures the essence of this lesson"
+    // }`;
 
-//         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-//         const result = await model.generateContent(prompt);
-//         const text = result.response.text();
+    //         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    //         const result = await model.generateContent(prompt);
+    //         const text = result.response.text();
 
-//         // Clean the response (remove markdown code blocks if present)
-//         const cleaned = text
-//           .replace(/```json\n?/g, "")
-//           .replace(/```\n?/g, "")
-//           .trim();
+    //         // Clean the response (remove markdown code blocks if present)
+    //         const cleaned = text
+    //           .replace(/```json\n?/g, "")
+    //           .replace(/```\n?/g, "")
+    //           .trim();
 
-//         const summaryData = JSON.parse(cleaned);
-//         res.send({ success: true, summary: summaryData });
-//       } catch (error) {
-//         console.error("AI Summary Error:", error);
-//         res
-//           .status(500)
-//           .send({
-//             message: "AI summary generation failed",
-//             error: error.message,
-//           });
-//       }
-//     });
+    //         const summaryData = JSON.parse(cleaned);
+    //         res.send({ success: true, summary: summaryData });
+    //       } catch (error) {
+    //         console.error("AI Summary Error:", error);
+    //         res
+    //           .status(500)
+    //           .send({
+    //             message: "AI summary generation failed",
+    //             error: error.message,
+    //           });
+    //       }
+    //     });
 
-app.post("/ai-summary", async (req, res) => {
-  console.log("HIT");
-  try {
-    const { title, description, category, emotionalTone, comments } = req.body;
+    // top contributor r jonno
 
-    if (!title || !description) {
-      return res.status(400).send({ message: "Title and description are required" });
-    }
+    app.get("/top-users", async (req, res) => {
+      const result = await usersCollection.find().limit(3).toArray();
+      res.send(result);
+    });
 
-    const commentText = comments?.length > 0
-      ? comments.slice(0, 10).map((c) => `- ${c.comment}`).join("\n")
-      : "No comments yet.";
+    app.post("/ai-summary", async (req, res) => {
+      console.log("HIT");
+      try {
+        const { title, description, category, emotionalTone, comments } =
+          req.body;
 
-    const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: "openrouter/free",
-        messages: [{
-          role: "user",
-          content: `You are an insightful life coach AI. Analyze the following life lesson and provide a structured summary.
+        if (!title || !description) {
+          return res
+            .status(400)
+            .send({ message: "Title and description are required" });
+        }
+
+        const commentText =
+          comments?.length > 0
+            ? comments
+                .slice(0, 10)
+                .map((c) => `- ${c.comment}`)
+                .join("\n")
+            : "No comments yet.";
+
+        const response = await axios.post(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            model: "openrouter/free",
+            messages: [
+              {
+                role: "user",
+                content: `You are an insightful life coach AI. Analyze the following life lesson and provide a structured summary.
 
 **Lesson Title:** ${title}
 **Category:** ${category || "General"}
@@ -883,44 +898,39 @@ Provide a JSON response with EXACTLY this structure (no markdown, pure JSON):
   "suggestedAction": "One specific actionable thing readers can do today",
   "communityMood": "A brief summary of how the community responded",
   "powerQuote": "A short inspiring quote (max 15 words)"
-}`
-        }]
-      },
-      {
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json"
-        }
+}`,
+              },
+            ],
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        const text = response.data.choices[0].message.content;
+        const cleaned = text
+          .replace(/```json\n?/g, "")
+          .replace(/```\n?/g, "")
+          .trim();
+        const summaryData = JSON.parse(cleaned);
+
+        res.send({ success: true, summary: summaryData });
+      } catch (error) {
+        console.error("AI Summary Error:", error.message);
+        res.status(500).send({
+          message: "AI summary generation failed",
+          error: error.message,
+        });
       }
-    );
-
-    const text = response.data.choices[0].message.content;
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const summaryData = JSON.parse(cleaned);
-
-    res.send({ success: true, summary: summaryData });
-
-  } catch (error) {
-    console.error("AI Summary Error:", error.message);
-    res.status(500).send({ message: "AI summary generation failed", error: error.message });
-  }
-});
-
-    // top contributor r jonno
-
-    app.get("/top-users", async (req, res) => {
-      const result = await usersCollection.find().limit(3).toArray();
-      res.send(result);
     });
-
-    // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
-    // console.log(
-    //   "Pinged your deployment. You successfully connected to MongoDB!"
-    // );
   } finally {
   }
 }
+
 run().catch(console.dir);
 
 app.listen(port, () => {
