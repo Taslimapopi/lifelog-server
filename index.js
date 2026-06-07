@@ -72,6 +72,7 @@ async function run() {
     const db = client.db("life_log");
     const lessonCollections = db.collection("lessons");
     const usersCollection = db.collection("users");
+    const quotesCollection = db.collection("quotes");
     const chatsCollection = db.collection("chats");
 
     // middle admin before allowing admin activity
@@ -865,6 +866,32 @@ async function run() {
       const result = await usersCollection.find().limit(3).toArray();
       res.send(result);
     });
+
+    // Random quote of the day
+app.get("/quote-of-the-day", async (req, res) => {
+  try {
+    const today = new Date().toISOString().split("T")[0]; // "2026-06-07"
+    
+    // today's consistent random quote 
+    const count = await quotesCollection.countDocuments();
+    const dayNumber = Math.floor(Date.now() / 86400000); // days since epoch
+    const index = dayNumber % count;
+    
+    const quote = await quotesCollection.find().skip(index).limit(1).toArray();
+    res.send(quote[0]);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to fetch quote" });
+  }
+});
+
+app.get("/quotes-all", async (req, res) => {
+  try {
+    const quotes = await quotesCollection.find().toArray();
+    res.send(quotes);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to fetch quotes" });
+  }
+});
 
     app.post("/ai-summary", async (req, res) => {
       console.log("HIT");
