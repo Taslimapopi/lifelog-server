@@ -1,6 +1,15 @@
 const express = require("express");
 const cors = require("cors");
+const http = require("http")
+const {Server} = require("socket.io")
 const app = express();
+const server = http.createServer(app)
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"]
+  }
+});
 const admin = require("firebase-admin");
 const axios = require("axios");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -63,6 +72,7 @@ async function run() {
     const db = client.db("life_log");
     const lessonCollections = db.collection("lessons");
     const usersCollection = db.collection("users");
+    const chatsCollection = db.collection("chats");
 
     // middle admin before allowing admin activity
     // must be used after verifyFBToken middleware
@@ -926,6 +936,61 @@ Provide a JSON response with EXACTLY this structure (no markdown, pure JSON):
         });
       }
     });
+    io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  // User একটা room এ join করে (তার email দিয়ে)
+  socket.on("join_room", (userEmail) => {
+    socket.join(userEmail);
+    console.log(`${userEmail} joined their room`);
+  });
+
+  // Message পাঠানো
+  socket.on("send_message", async (data) => {
+    const message = {
+      senderEmail: data.senderEmail,
+      receiverEmail: data.receiverEmail,
+      message: data.message,
+      senderRole: data.senderRole, // "user" or "admin"
+      createdAt: new Date(),
+      isRead: false
+    };
+
+    // MongoDB তে save
+    await chatsCollection.insertOne(message);
+
+    // দুজনকেই message পাঠাও
+    io.to(data.receiverEmail).emit("receive_message", message);
+    io.to(data.senderEmail).emit("receive_message", message);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+// run() এর ভেতরে যোগ করুন
+app.get("/chats/:userEmail", async (req, res) => {
+  const { userEmail } = req.params;
+  const messages = await chatsCollection
+    .find({
+      $or: [
+        { senderEmail: userEmail },
+        { receiverEmail: userEmail }
+      ]
+    })
+    .sort({ createdAt: 1 })
+    .toArray();
+  res.send(messages);
+});
+
+// সব user এর chat list (admin এর জন্য)
+app.get("/chats/users/all", async (req, res) => {
+  const users = await chatsCollection.distinct("senderEmail", {
+    senderRole: "user"
+  });
+  res.send(users);
+});
     // await client.db("admin").command({ ping: 1 });
   } finally {
   }
@@ -933,6 +998,10 @@ Provide a JSON response with EXACTLY this structure (no markdown, pure JSON):
 
 run().catch(console.dir);
 
-app.listen(port, () => {
+// app.listen(port, () => {
+//   console.log(`LifeLog listening at port ${port}`);
+// });
+
+server.listen(port, () => {
   console.log(`LifeLog listening at port ${port}`);
 });
