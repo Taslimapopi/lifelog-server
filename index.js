@@ -1,24 +1,24 @@
 const express = require("express");
+require("dotenv").config();
 const cors = require("cors");
-const http = require("http")
-const {Server} = require("socket.io")
 const app = express();
-const server = http.createServer(app)
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST"]
-  }
+const { GoogleGenAI } = require("@google/genai");
+
+
+app.use(cors());
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
 });
+
 const admin = require("firebase-admin");
 const axios = require("axios");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const port = process.env.PORT || 3000;
-require("dotenv").config();
+const port = process.env.PORT || 3001;
+
 
 const stripe = require("stripe")(process.env.STRIPE_SECRET);
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 
 // from conceptual cls
 const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
@@ -792,73 +792,6 @@ async function run() {
       res.send(result);
     });
 
-    // ============================================
-    // 🤖 AI SUMMARY ROUTE (Gemini API)
-    // ============================================
-    //     app.post("/ai-summary", async (req, res) => {
-    //        console.log("AI Summary route hit!"); // এটা যোগ করুন
-    //   console.log("Request body:", req.body); // এটাও যোগ করুন
-    //       try {
-    //         const { title, description, category, emotionalTone, comments } =
-    //           req.body;
-
-    //         if (!title || !description) {
-    //           return res
-    //             .status(400)
-    //             .send({ message: "Title and description are required" });
-    //         }
-
-    //         const commentText =
-    //           comments && comments.length > 0
-    //             ? comments
-    //                 .slice(0, 10)
-    //                 .map((c) => `- ${c.comment}`)
-    //                 .join("\n")
-    //             : "No comments yet.";
-
-    //         const prompt = `
-    // You are an insightful life coach AI. Analyze the following life lesson shared by a user on the LifeLog platform and provide a structured summary.
-
-    // **Lesson Title:** ${title}
-    // **Category:** ${category || "General"}
-    // **Emotional Tone:** ${emotionalTone || "Neutral"}
-    // **Lesson Content:**
-    // ${description}
-
-    // **Community Comments:**
-    // ${commentText}
-
-    // Provide a JSON response with EXACTLY this structure (no markdown, pure JSON):
-    // {
-    //   "keyTakeaways": ["takeaway 1", "takeaway 2", "takeaway 3"],
-    //   "emotionalInsight": "A 1-2 sentence insight about the emotional journey in this lesson",
-    //   "suggestedAction": "One specific, actionable thing readers can do today based on this lesson",
-    //   "communityMood": "A brief summary of how the community responded (based on comments)",
-    //   "powerQuote": "A short inspiring quote (max 15 words) that captures the essence of this lesson"
-    // }`;
-
-    //         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    //         const result = await model.generateContent(prompt);
-    //         const text = result.response.text();
-
-    //         // Clean the response (remove markdown code blocks if present)
-    //         const cleaned = text
-    //           .replace(/```json\n?/g, "")
-    //           .replace(/```\n?/g, "")
-    //           .trim();
-
-    //         const summaryData = JSON.parse(cleaned);
-    //         res.send({ success: true, summary: summaryData });
-    //       } catch (error) {
-    //         console.error("AI Summary Error:", error);
-    //         res
-    //           .status(500)
-    //           .send({
-    //             message: "AI summary generation failed",
-    //             error: error.message,
-    //           });
-    //       }
-    //     });
 
     // top contributor r jonno
 
@@ -868,156 +801,151 @@ async function run() {
     });
 
     // Random quote of the day
-app.get("/quote-of-the-day", async (req, res) => {
-  try {
-    const today = new Date().toISOString().split("T")[0]; // "2026-06-07"
-    
-    // today's consistent random quote 
-    const count = await quotesCollection.countDocuments();
-    const dayNumber = Math.floor(Date.now() / 86400000); // days since epoch
-    const index = dayNumber % count;
-    
-    const quote = await quotesCollection.find().skip(index).limit(1).toArray();
-    res.send(quote[0]);
-  } catch (error) {
-    res.status(500).send({ message: "Failed to fetch quote" });
-  }
-});
-
-app.get("/quotes-all", async (req, res) => {
-  try {
-    const quotes = await quotesCollection.find().toArray();
-    res.send(quotes);
-  } catch (error) {
-    res.status(500).send({ message: "Failed to fetch quotes" });
-  }
-});
-
-    app.post("/ai-summary", async (req, res) => {
-      console.log("HIT");
+    app.get("/quote-of-the-day", async (req, res) => {
       try {
-        const { title, description, category, emotionalTone, comments } =
-          req.body;
+        const today = new Date().toISOString().split("T")[0]; // "2026-06-07"
 
-        if (!title || !description) {
-          return res
-            .status(400)
-            .send({ message: "Title and description are required" });
-        }
+        // today's consistent random quote
+        const count = await quotesCollection.countDocuments();
+        const dayNumber = Math.floor(Date.now() / 86400000); // days since epoch
+        const index = dayNumber % count;
 
-        const commentText =
-          comments?.length > 0
-            ? comments
-                .slice(0, 10)
-                .map((c) => `- ${c.comment}`)
-                .join("\n")
-            : "No comments yet.";
-
-        const response = await axios.post(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            model: "openrouter/free",
-            messages: [
-              {
-                role: "user",
-                content: `You are an insightful life coach AI. Analyze the following life lesson and provide a structured summary.
-
-**Lesson Title:** ${title}
-**Category:** ${category || "General"}
-**Emotional Tone:** ${emotionalTone || "Neutral"}
-**Lesson Content:** ${description}
-**Community Comments:** ${commentText}
-
-Provide a JSON response with EXACTLY this structure (no markdown, pure JSON):
-{
-  "keyTakeaways": ["takeaway 1", "takeaway 2", "takeaway 3"],
-  "emotionalInsight": "A 1-2 sentence insight about the emotional journey",
-  "suggestedAction": "One specific actionable thing readers can do today",
-  "communityMood": "A brief summary of how the community responded",
-  "powerQuote": "A short inspiring quote (max 15 words)"
-}`,
-              },
-            ],
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-          },
-        );
-
-        const text = response.data.choices[0].message.content;
-        const cleaned = text
-          .replace(/```json\n?/g, "")
-          .replace(/```\n?/g, "")
-          .trim();
-        const summaryData = JSON.parse(cleaned);
-
-        res.send({ success: true, summary: summaryData });
+        const quote = await quotesCollection
+          .find()
+          .skip(index)
+          .limit(1)
+          .toArray();
+        res.send(quote[0]);
       } catch (error) {
-        console.error("AI Summary Error:", error.message);
-        res.status(500).send({
-          message: "AI summary generation failed",
-          error: error.message,
+        res.status(500).send({ message: "Failed to fetch quote" });
+      }
+    });
+
+    app.get("/quotes-all", async (req, res) => {
+      try {
+        const quotes = await quotesCollection.find().toArray();
+        res.send(quotes);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch quotes" });
+      }
+    });
+
+
+    // ai title generator
+
+    app.post("/generate-title", async (req, res) => {
+      try {
+        const { lesson } = req.body;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: `
+            Generate a short lesson title.
+
+        Rules:
+            - Maximum 8 words.
+            - Return only the title.
+            - No quotation marks.
+
+        Lesson:
+            ${lesson}
+                      `,
+        });
+
+        res.json({
+           title: response.text.trim(),
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({
+          message: "Failed to generate title",
         });
       }
     });
+
+    // generate summary
+    app.post("/generate-summary", async (req, res) => {
+      try {
+        const { lesson } = req.body;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: `
+            You are an insightful life coach AI. Analyze the following life lesson and provide a structured summary.
+
+        Rules:
+            - Maximum 50 words.
+            - Return only the summary.
+            
+
+        Lesson:
+            ${lesson}
+                      `,
+        });
+
+        res.json({
+           summary: response.text.trim(),
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({
+          message: "Failed to generate title",
+        });
+      }
+    });
+
+
     io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+      console.log("User connected:", socket.id);
 
-  // User একটা room এ join করে (তার email দিয়ে)
-  socket.on("join_room", (userEmail) => {
-    socket.join(userEmail);
-    console.log(`${userEmail} joined their room`);
-  });
+      // User একটা room এ join করে (তার email দিয়ে)
+      socket.on("join_room", (userEmail) => {
+        socket.join(userEmail);
+        console.log(`${userEmail} joined their room`);
+      });
 
-  // Message পাঠানো
-  socket.on("send_message", async (data) => {
-    const message = {
-      senderEmail: data.senderEmail,
-      receiverEmail: data.receiverEmail,
-      message: data.message,
-      senderRole: data.senderRole, // "user" or "admin"
-      createdAt: new Date(),
-      isRead: false
-    };
+      // Message পাঠানো
+      socket.on("send_message", async (data) => {
+        const message = {
+          senderEmail: data.senderEmail,
+          receiverEmail: data.receiverEmail,
+          message: data.message,
+          senderRole: data.senderRole, // "user" or "admin"
+          createdAt: new Date(),
+          isRead: false,
+        };
 
-    // MongoDB তে save
-    await chatsCollection.insertOne(message);
+        // MongoDB তে save
+        await chatsCollection.insertOne(message);
 
-    // দুজনকেই message পাঠাও
-    io.to(data.receiverEmail).emit("receive_message", message);
-    io.to(data.senderEmail).emit("receive_message", message);
-  });
+        // দুজনকেই message পাঠাও
+        io.to(data.receiverEmail).emit("receive_message", message);
+        io.to(data.senderEmail).emit("receive_message", message);
+      });
 
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-  });
-});
+      socket.on("disconnect", () => {
+        console.log("User disconnected:", socket.id);
+      });
+    });
+    // run() এর ভেতরে যোগ করুন
+    app.get("/chats/:userEmail", async (req, res) => {
+      const { userEmail } = req.params;
+      const messages = await chatsCollection
+        .find({
+          $or: [{ senderEmail: userEmail }, { receiverEmail: userEmail }],
+        })
+        .sort({ createdAt: 1 })
+        .toArray();
+      res.send(messages);
+    });
 
-// run() এর ভেতরে যোগ করুন
-app.get("/chats/:userEmail", async (req, res) => {
-  const { userEmail } = req.params;
-  const messages = await chatsCollection
-    .find({
-      $or: [
-        { senderEmail: userEmail },
-        { receiverEmail: userEmail }
-      ]
-    })
-    .sort({ createdAt: 1 })
-    .toArray();
-  res.send(messages);
-});
-
-// সব user এর chat list (admin এর জন্য)
-app.get("/chats/users/all", async (req, res) => {
-  const users = await chatsCollection.distinct("senderEmail", {
-    senderRole: "user"
-  });
-  res.send(users);
-});
+    // সব user এর chat list (admin এর জন্য)
+    app.get("/chats/users/all", async (req, res) => {
+      const users = await chatsCollection.distinct("senderEmail", {
+        senderRole: "user",
+      });
+      res.send(users);
+    });
     // await client.db("admin").command({ ping: 1 });
   } finally {
   }
@@ -1025,10 +953,8 @@ app.get("/chats/users/all", async (req, res) => {
 
 run().catch(console.dir);
 
-// app.listen(port, () => {
-//   console.log(`LifeLog listening at port ${port}`);
-// });
-
-server.listen(port, () => {
+app.listen(port, () => {
   console.log(`LifeLog listening at port ${port}`);
 });
+
+
