@@ -73,7 +73,8 @@ async function run() {
     const lessonCollections = db.collection("lessons");
     const usersCollection = db.collection("users");
     const quotesCollection = db.collection("quotes");
-    const chatsCollection = db.collection("chats");
+    const conversationsCollection = db.collection("conversations")
+    const messagesCollection = db.collection("messages")
 
     // middle admin before allowing admin activity
     // must be used after verifyFBToken middleware
@@ -893,59 +894,84 @@ async function run() {
         });
       }
     });
+// chat using express api
+
+// conversation creation api
+
+app.post('/chat/start',verifyFBToken, async (req,res)=>{
+
+  const {userId, name} = req.body
+  const email = req.decoded_email
+  let conversation = await conversationsCollection.findOne({userId})
+  if (!conversation){
+    const result = await conversationsCollection.insertOne({
+      userId, name, email,
+      createdAt: new Date()
+    })
+    conversation = await conversationsCollection.findOne({
+    _id: result.insertedId
+  })
+  }
+
+  res.send(conversation)
+
+})
+
+// send message api- step2
+
+app.post('/chat/message',verifyFBToken, async(req,res)=>{
+  const {conversationId, senderId, senderRole, text} = req.body
+  if(!conversationId || !senderId || !senderRole || !text){
+    return res.status(400).send({message: 'info are missing'})
+  }
+
+  const message = {
+    conversationId : new ObjectId(conversationId),
+    senderId, 
+    senderRole, 
+    text, 
+    createdAt: new Date()}
+
+  const result = await messagesCollection.insertOne(message)
+  res.send({
+    success: true,
+    insertedId : result.insertedId
+  })
+})
+
+// get message api
+
+app.get('/chat/message/:conversationId',verifyFBToken, async (req, res)=>{
+  const {conversationId} = req.params
+  const conversation = await conversationsCollection.findOne({_id : new ObjectId(conversationId)})
+  if(!conversation){
+    return res.status(404).send({message: 'conversation not found'})
+  }
+  const user = await usersCollection.findOne({email: req.decoded_email})
+  if(user.role !== 'admin' && conversation.email !== req.decoded_email){
+    return res.status(401).send({message: 'forbidden'})
+  }
+  try{
+    const  message = await messagesCollection.find({conversationId : new ObjectId(conversationId)}).sort({createdAt: 1}).toArray()
+    res.send(message)
+  }catch(error){
+    res.status(500).send({message: 'something went wrong getting conversation'})
+  }
+
+})
+
+// admin dashboard api
+
+app.get('/chat/conversations', verifyFBToken,verifyAdmin, async (req,res)=>{
+  try{
+    const conversations = await conversationsCollection.find().sort({createdAt: -1}).toArray()
+    res.send(conversations)
+  }catch(error){
+    res.status(500).send({message: 'something went wrong'})
+  }
+})
 
 
-    io.on("connection", (socket) => {
-      console.log("User connected:", socket.id);
-
-      // User একটা room এ join করে (তার email দিয়ে)
-      socket.on("join_room", (userEmail) => {
-        socket.join(userEmail);
-        console.log(`${userEmail} joined their room`);
-      });
-
-      // Message পাঠানো
-      socket.on("send_message", async (data) => {
-        const message = {
-          senderEmail: data.senderEmail,
-          receiverEmail: data.receiverEmail,
-          message: data.message,
-          senderRole: data.senderRole, // "user" or "admin"
-          createdAt: new Date(),
-          isRead: false,
-        };
-
-        // MongoDB তে save
-        await chatsCollection.insertOne(message);
-
-        // দুজনকেই message পাঠাও
-        io.to(data.receiverEmail).emit("receive_message", message);
-        io.to(data.senderEmail).emit("receive_message", message);
-      });
-
-      socket.on("disconnect", () => {
-        console.log("User disconnected:", socket.id);
-      });
-    });
-    // run() এর ভেতরে যোগ করুন
-    app.get("/chats/:userEmail", async (req, res) => {
-      const { userEmail } = req.params;
-      const messages = await chatsCollection
-        .find({
-          $or: [{ senderEmail: userEmail }, { receiverEmail: userEmail }],
-        })
-        .sort({ createdAt: 1 })
-        .toArray();
-      res.send(messages);
-    });
-
-    // সব user এর chat list (admin এর জন্য)
-    app.get("/chats/users/all", async (req, res) => {
-      const users = await chatsCollection.distinct("senderEmail", {
-        senderRole: "user",
-      });
-      res.send(users);
-    });
     // await client.db("admin").command({ ping: 1 });
   } finally {
   }
