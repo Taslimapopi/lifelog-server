@@ -900,12 +900,12 @@ async function run() {
 
 app.post('/chat/start',verifyFBToken, async (req,res)=>{
 
-  const {userId, name} = req.body
+  const {userId, name, photo} = req.body
   const email = req.decoded_email
   let conversation = await conversationsCollection.findOne({userId})
   if (!conversation){
     const result = await conversationsCollection.insertOne({
-      userId, name, email,
+      userId, name, email, photo,
       createdAt: new Date()
     })
     conversation = await conversationsCollection.findOne({
